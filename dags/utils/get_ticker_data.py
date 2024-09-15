@@ -17,27 +17,24 @@ from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 def crawl_page(url, sleep=1, scrolldown=2, timeout=10):
     session = HTMLSession()
     r = session.get(url)
-    while True:
-        try:
-            r.html.render(sleep=1, scrolldown=2, timeout=10)
-            break
-        except:
-            continue
+    print(f"crawling page {url}")
+    r.html.render(sleep=1, scrolldown=2, timeout=10)
     session.close()
     return r
 
-
 def find_top_5_stories_finshots(ticker):
+    print(f"starting scraping for {ticker} finshots")
     url = f"https://backend.finshots.in/backend/search/?q={ticker}"
     resp = requests.get(url)
     results = resp.json()['matches']
+    print(results.text)
     results = sorted(results, key=lambda x: x['published_date'], reverse=True)[:5]
     stories = {}
     for i in results:
         article, sentiment = get_article_sentiment_finshots(i['post_url'])
         stories[i['title']] = {"url": i['post_url'], "article": article, "sentiment_score": sentiment}
     print(stories)
-    return pd.DataFrame(stories).transpose().reset_index().rename(columns={'index':'title'})
+    return pd.DataFrame(stories).transpose().reset_index().rename(columns={'index':'title'}).reset_index()
 
 
 def get_article_sentiment_finshots(absolute_url):
@@ -51,9 +48,11 @@ def get_article_sentiment_finshots(absolute_url):
 
 
 def find_top_5_stories_your_story(ticker):
+    print(f"starting scraping for {ticker} yourstory")
     url = "https://yourstory.com"
     r = crawl_page(url + "/search?q=" + ticker + "&page=1", 1, 2, 10)
     results = r.html.find('.container-results', first=True).find('a')
+    print(results)
     stories = {}
 
     for link in results:
@@ -66,7 +65,7 @@ def find_top_5_stories_your_story(ticker):
                 stories[title] = {"url": link_val, "article": article, "sentiment_score": sentiment}
                 if len(stories) == 5: break
     print(stories)
-    return pd.DataFrame(stories).transpose().reset_index().rename(columns={'index':'title'})
+    return pd.DataFrame(stories).transpose().reset_index().rename(columns={'index':'title'}).reset_index()
 
 
 def translate_hindi_to_english(text):
@@ -97,44 +96,37 @@ def get_article_sentiment_your_story(absolute_url):
     return title + '\n' + header + '\n' + article_text, sentiment_score
 
 
-def get_top_5_stories(ticker):
+def get_top_5_stories_hdfc():
+    print("starting scraping for hdfc")
     date=datetime.today().strftime('%Y-%m-%d')
-
+    ticker='HDFC'
     outdir_your_story = f"/opt/airflow/output/source=your_story/ticker={ticker.replace(' ','_')}/date={date}/"
-    outdir_finshots=f"/opt/airflow/output/source=your_story/ticker={ticker.replace(' ','_')}/date={date}/"
+    outdir_finshots=f"/opt/airflow/output/source=finshots/ticker={ticker.replace(' ','_')}/date={date}/"
     if not os.path.exists(outdir_your_story):
         os.mkdir(outdir_your_story)
 
     if not os.path.exists(outdir_finshots):
         os.mkdir(outdir_finshots)
 
-    try:
-        df_your_story=find_top_5_stories_your_story(ticker)
-    except:
-        print(f"failed your story {ticker}")
-    df_your_story.to_csv(outdir_your_story+'data.csv')
-    try:
-        df_finshots=find_top_5_stories_finshots(ticker)
-    except:
-        print(f"failed finshots {ticker}")
-    df_finshots.to_csv(outdir_finshots+'data.csv')
+    df_your_story=find_top_5_stories_your_story(ticker)
+    df_your_story.to_csv(outdir_your_story+'data.csv',index=False)
+    df_finshots=find_top_5_stories_finshots(ticker)
+    df_finshots.to_csv(outdir_finshots+'data.csv',index=False)
+
+def get_top_5_stories_tata_motors():
+    print("starting scraping for tata motors")
+    date=datetime.today().strftime('%Y-%m-%d')
+    ticker='Tata Motors'
+    outdir_your_story = f"/opt/airflow/output/source=your_story/ticker={ticker.replace(' ','_')}/date={date}/"
+    outdir_finshots=f"/opt/airflow/output/source=finshots/ticker={ticker.replace(' ','_')}/date={date}/"
+    if not os.path.exists(outdir_your_story):
+        os.mkdir(outdir_your_story)
+
+    if not os.path.exists(outdir_finshots):
+        os.mkdir(outdir_finshots)
 
 
-
-# if __name__ == "__main__":
-#     url1 = "https://yourstory.com/hindi/nclt-approves-the-biggest-merger-deal-in-the-country-hdfc-and-hdfc-bank-banking-sector"
-#     url2="https://yourstory.com/hindi/ministry-of-road-transport-and-highways-launches-vehicle-scrapping-policy"
-#     #print(get_article_sentiment_your_story(url2))
-#     date=datetime.today().strftime('%Y-%m-%d')
-#     outdir = f"./output/source=your_story/ticker=hdfc/date={date}/"
-#     if not os.path.exists(outdir):
-#         os.mkdir(outdir)
-#
-#     your_story_hdfc=find_top_5_stories_your_story('HDFC').reset_index()
-#     your_story_hdfc.to_csv(f"./output/source=your_story/ticker=hdfc/date={date}/data.csv",index=False)
-
-    # find_top_5_stories_your_story('Tata Motors')
-    # find_top_5_stories_finshots("HDFC")
-    # find_top_5_stories_finshots("Tata Motors")
-    # url="https://finshots.in/markets/hdfc-merger-can-the-60-billion-elephant-dance/"
-    # get_article_sentiment_finshots(url1)
+    df_your_story=find_top_5_stories_your_story(ticker)
+    df_your_story.to_csv(outdir_your_story+'data.csv',index=False)
+    df_finshots=find_top_5_stories_finshots(ticker)
+    df_finshots.to_csv(outdir_finshots+'data.csv',index=False)
